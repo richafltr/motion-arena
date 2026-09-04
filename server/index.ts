@@ -37,7 +37,7 @@ let state: ExperimentState = {
   modalStatus: modalEndpoint ? 'checking' : 'fallback', hiddenSpan: [0.31, 0.7], duration: 8,
   budgetTotal: 12, budgetRemaining: 9, rollouts: createPreparedRollouts(groundTruth),
   selectedRolloutId: 'r03', bestRolloutId: 'r03', status: 'running',
-  playback: { playing: false, time: 0, speed: 1 }, renderer: 'checking', webmcp: 'checking', error: null,
+  playback: { playing: false, time: 0, speed: 1, loopHidden: true }, renderer: 'checking', webmcp: 'checking', error: null,
   learning: { running: false, generation: 0, evaluated: 0 },
 };
 

@@ -1,5 +1,6 @@
-import { ArrowRight, BrainCircuit, Check, Pause, RotateCcw, Sparkles } from 'lucide-react';
+import { BrainCircuit, Check, Pause, RotateCcw, Sparkles } from 'lucide-react';
 import { getBestRollout, getSelectedRollout, useExperimentStore } from '../state/experimentStore';
+import { RolloutGallery } from './RolloutGallery';
 import { ScoreDisplay } from './ScoreDisplay';
 
 export function RolloutStrip() {
@@ -79,21 +80,8 @@ export function RolloutStrip() {
         </div>
       </div>
 
-      <div className="history-row">
-        <div className="progression" aria-label="Score progression">
-          {state.rollouts.map((rollout, index) => (
-            <span key={rollout.id}>
-              <button
-                className={rollout.id === state.selectedRolloutId ? 'active' : ''}
-                onClick={() => state.selectRollout(rollout.id)}
-                title={`${rollout.id.toUpperCase()} · seed ${rollout.seed} · ${rollout.note}`}
-              >
-                <small>#{String(index + 1).padStart(2, '0')}</small>{rollout.reward.combined.toFixed(1)}
-              </button>
-              {index < state.rollouts.length - 1 && <ArrowRight size={12} />}
-            </span>
-          ))}
-        </div>
+      <div className="rollout-search-heading">
+        <div><span className="eyebrow">Roll-out search</span><p>Each card is a candidate policy. Click one to replay it on the LEFT.</p></div>
         <div className="rollout-meta">
           <span>{selected?.id.toUpperCase()}</span>
           <span>seed {selected?.seed}</span>
@@ -101,6 +89,7 @@ export function RolloutStrip() {
           {state.status === 'submitted' && <span className="submitted"><Check size={12} /> submitted</span>}
         </div>
       </div>
+      <RolloutGallery rollouts={state.rollouts} selectedId={state.selectedRolloutId} bestId={state.bestRolloutId} onSelect={state.selectRollout} />
       {state.error && <button className="error-toast" onClick={state.clearError}>{state.error}</button>}
     </section>
   );

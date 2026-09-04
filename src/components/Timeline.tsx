@@ -4,10 +4,14 @@ import { useExperimentStore } from '../state/experimentStore';
 export function Timeline() {
   const playback = useExperimentStore((state) => state.playback);
   const duration = useExperimentStore((state) => state.duration);
+  const hiddenSpan = useExperimentStore((state) => state.hiddenSpan);
   const togglePlayback = useExperimentStore((state) => state.togglePlayback);
   const resetPlayback = useExperimentStore((state) => state.resetPlayback);
   const setPlaybackTime = useExperimentStore((state) => state.setPlaybackTime);
   const setPlaybackSpeed = useExperimentStore((state) => state.setPlaybackSpeed);
+  const toggleLoopMode = useExperimentStore((state) => state.toggleLoopMode);
+  const normalizedTime = playback.time / duration;
+  const isHidden = normalizedTime >= hiddenSpan[0] && normalizedTime <= hiddenSpan[1];
 
   return (
     <div className="timeline">
@@ -19,6 +23,9 @@ export function Timeline() {
           <RotateCcw size={15} />
         </button>
         <span className="timecode">{playback.time.toFixed(2)} / {duration.toFixed(2)}s</span>
+        <button className={`frame-zone${isHidden ? ' frame-zone--hidden' : ''}`} onClick={toggleLoopMode} title="Toggle hidden-span comparison loop">
+          {playback.loopHidden ? 'Hidden comparison · looping' : isHidden ? 'Full motion · hidden frame' : 'Full motion · known frame'}
+        </button>
       </div>
       <input
         className="scrubber"

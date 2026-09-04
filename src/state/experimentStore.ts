@@ -21,6 +21,7 @@ type ExperimentActions = {
   togglePlayback: () => void;
   setPlaybackTime: (time: number) => void;
   setPlaybackSpeed: (speed: number) => void;
+  toggleLoopMode: () => void;
   resetPlayback: () => void;
   setRenderer: (renderer: ExperimentState['renderer']) => void;
   setWebMcp: (webmcp: ExperimentState['webmcp']) => void;
@@ -48,7 +49,7 @@ const initialState: ExperimentState = {
   selectedRolloutId: demoRollouts.at(-1)?.id ?? 'r01',
   bestRolloutId: demoRollouts.at(-1)?.id ?? 'r01',
   status: 'running',
-  playback: { playing: true, time: 0, speed: 1 },
+  playback: { playing: true, time: (0.31 + 0.08) * 8, speed: 1, loopHidden: true },
   renderer: 'checking',
   webmcp: 'checking',
   error: null,
@@ -56,6 +57,9 @@ const initialState: ExperimentState = {
 };
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+let learningRunId = 0;
+const focusHiddenTime = (state: Pick<ExperimentState, 'hiddenSpan' | 'duration'>) =>
+  (state.hiddenSpan[0] + Math.min(0.08, (state.hiddenSpan[1] - state.hiddenSpan[0]) * 0.24)) * state.duration;
 
 async function scorePrepared(reference: ExperimentState['groundTruth'], span: [number, number], duration: number) {
   const rollouts = createPreparedRollouts(reference);
@@ -93,7 +97,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
 
   selectRollout: (id) => {
     if (get().rollouts.some((rollout) => rollout.id === id)) {
-      set((state) => ({ selectedRolloutId: id, playback: { ...state.playback, time: 0 } }));
+      set((state) => ({ selectedRolloutId: id, playback: { ...state.playback, time: focusHiddenTime(state), playing: true } }));
     }
   },
 
@@ -118,7 +122,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
       budgetRemaining: initialState.budgetTotal - 3,
       status: 'running',
       learning: { running: false, generation: 0, evaluated: 0 },
-      playback: { ...state.playback, time: 0, playing: true },
+      playback: { ...state.playback, time: focusHiddenTime(state), playing: true },
       error: null,
     });
     void get().initializeEnvironment();
@@ -184,7 +188,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
           bestRolloutId: best.id,
           budgetRemaining: current.budgetRemaining - 1,
           status: 'ready',
-          playback: { ...current.playback, time: 0, playing: true },
+          playback: { ...current.playback, time: focusHiddenTime(current), playing: true },
         };
       });
       return rollout;
@@ -203,6 +207,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
   submitBest: (rolloutId) => {
     const state = get();
     const submitted = rolloutId ? rewardFor(state, rolloutId) : bestRollout(state);
+    learningRunId += 1;
     set({ status: 'submitted', selectedRolloutId: submitted.id, learning: { ...state.learning, running: false } });
     return submitted;
   },
@@ -214,7 +219,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
       rollouts: createPreparedRollouts(state.groundTruth), selectedRolloutId: 'r03', bestRolloutId: 'r03',
       budgetRemaining: state.budgetTotal - 3, status: 'running', error: null,
       learning: { running: false, generation: 0, evaluated: 0 },
-      playback: { ...state.playback, time: 0, playing: false },
+      playback: { ...state.playback, time: focusHiddenTime(state), playing: false },
     });
     await get().initializeEnvironment();
   },
@@ -226,20 +231,21 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
 
   startLocalLearning: () => {
     if (get().learning.running || get().budgetRemaining <= 0) return;
+    const runId = ++learningRunId;
     set((state) => ({
       executionMode: 'browser-student',
       status: 'ready',
       learning: { ...state.learning, running: true },
     }));
     void (async () => {
-      while (get().learning.running && get().budgetRemaining > 0 && get().status !== 'submitted') {
+      while (runId === learningRunId && get().learning.running && get().budgetRemaining > 0 && get().status !== 'submitted') {
         const state = get();
         const generation = state.learning.generation + 1;
         const leader = bestRollout(state);
         const center = leader.motion.residualPolicy;
         const batchSize = Math.min(2, state.budgetRemaining);
         for (let candidate = 0; candidate < batchSize; candidate += 1) {
-          if (!get().learning.running) break;
+          if (runId !== learningRunId || !get().learning.running) break;
           const seed = 9109 + generation * 101 + candidate * 17;
           const policy = seededPolicy(seed, generation, center, Math.max(0.025, 0.12 / generation));
           // CEM exploration includes a deterministic positive residual direction, then keeps it only if reward improves.
@@ -259,6 +265,7 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
             residualPolicy: policy,
           };
           const reward = await verifyCandidate(motion, current.groundTruth, current.hiddenSpan, current.duration);
+          if (runId !== learningRunId || !get().learning.running) break;
           const rollout: Rollout = {
             id: `r${String(current.rollouts.length + 1).padStart(2, '0')}`,
             seed,
@@ -279,20 +286,32 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
               bestRolloutId: best.id,
               budgetRemaining: latest.budgetRemaining - 1,
               learning: { running: latest.learning.running, generation, evaluated: latest.learning.evaluated + 1 },
-              playback: best.id === rollout.id ? { ...latest.playback, time: 0, playing: true } : latest.playback,
+              playback: best.id === rollout.id ? { ...latest.playback, time: focusHiddenTime(latest), playing: true } : latest.playback,
             };
           });
-          await delay(90);
+          await delay(650);
         }
       }
-      set((state) => ({ learning: { ...state.learning, running: false }, status: state.status === 'submitted' ? 'submitted' : 'ready' }));
+      if (runId === learningRunId) {
+        set((state) => ({ learning: { ...state.learning, running: false }, status: state.status === 'submitted' ? 'submitted' : 'ready' }));
+      }
     })();
   },
 
-  pauseLocalLearning: () => set((state) => ({ learning: { ...state.learning, running: false } })),
+  pauseLocalLearning: () => {
+    learningRunId += 1;
+    set((state) => ({ learning: { ...state.learning, running: false } }));
+  },
   togglePlayback: () => set((state) => ({ playback: { ...state.playback, playing: !state.playback.playing } })),
   setPlaybackTime: (time) => set((state) => ({ playback: { ...state.playback, time: Math.max(0, Math.min(state.duration, time)) } })),
   setPlaybackSpeed: (speed) => set((state) => ({ playback: { ...state.playback, speed: Math.max(0.25, Math.min(2, speed)) } })),
+  toggleLoopMode: () => set((state) => ({
+    playback: {
+      ...state.playback,
+      loopHidden: !state.playback.loopHidden,
+      time: state.playback.loopHidden ? state.playback.time : focusHiddenTime(state),
+    },
+  })),
   resetPlayback: () => set((state) => ({ playback: { ...state.playback, time: 0, playing: false } })),
   setRenderer: (renderer) => set({ renderer }),
   setWebMcp: (webmcp) => set({ webmcp }),

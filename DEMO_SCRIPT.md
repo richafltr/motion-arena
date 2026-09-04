@@ -2,7 +2,7 @@
 
 **0–10s:** Open `?mode=spectator`. Show the synchronized, orbitable candidate and held-out CMU ground truth. Scrub once to demonstrate the shared clock.
 
-**10–22s:** Point out the real pose/root/velocity verifier metrics, hidden temporal span, and runtime-scored baseline → medium → strong prepared BVHs.
+**10–22s:** Point out the looping hidden comparison, real pose/root/velocity verifier metrics, and runtime-scored baseline → medium → strong rollout cards. Click the baseline and best prepared cards to replay their visibly different LEFT motions.
 
 **22–38s:** Press **Start local learning**. Watch the 194-parameter Tiny Residual Student spend the remaining budget and replace the LEFT motion whenever scalar-reward CEM search finds a new best.
 

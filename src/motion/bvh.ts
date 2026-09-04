@@ -8,8 +8,9 @@ import {
   type KeyframeTrack,
 } from 'three';
 import { BVHLoader } from 'three/examples/jsm/loaders/BVHLoader.js';
-import { boundaryBlend, evaluatePolicy, STUDENT_JOINTS } from '../student/tinyResidualPolicy';
+import { STUDENT_JOINTS } from '../student/tinyResidualPolicy';
 import type { ResidualPolicy } from '../types';
+import { getCandidateTransform } from './candidateTransform';
 
 const CMU_TO_VRM: Record<string, VRMHumanBoneName> = {
   Hips: 'hips',
@@ -73,24 +74,22 @@ export async function loadBvhClip(url: string, vrm: VRM, options: BvhRetargetOpt
       if (!sourceRestTrack || sourceRestTrack.values.length < 4) continue;
       restQuaternion.fromArray(sourceRestTrack.values, 0).invert();
       const values = Array.from(sourceTrack.values);
+      const interpolant = sourceTrack.InterpolantFactoryMethodLinear(new Float32Array(4));
       for (let index = 0; index < values.length; index += 4) {
         const keyframe = index / 4;
-        const normalizedTime = (sourceTrack.times[keyframe] ?? 0) / options.duration;
+        const time = sourceTrack.times[keyframe] ?? 0;
         const hiddenSpan = options.hiddenSpan ?? [0, 1];
-        const blend = options.variant === undefined ? 0 : boundaryBlend(normalizedTime, hiddenSpan);
-        const spanPosition = (normalizedTime - hiddenSpan[0]) / Math.max(0.001, hiddenSpan[1] - hiddenSpan[0]);
-        const outputIndex = STUDENT_JOINTS.indexOf(sourceBone as (typeof STUDENT_JOINTS)[number]);
-        const residual = outputIndex >= 0
-          ? evaluatePolicy(options.residualPolicy, normalizedTime, spanPosition)[outputIndex] ?? 0
-          : 0;
-        const strength = options.variant === undefined
-          ? 1
-          : Math.max(0.1, Math.min(1.12, options.variant + residual * blend));
+        const channel = STUDENT_JOINTS.includes(sourceBone as (typeof STUDENT_JOINTS)[number])
+          ? sourceBone as (typeof STUDENT_JOINTS)[number]
+          : null;
+        const transform = options.variant === undefined
+          ? { blend: 0, strength: 1, sourceTime: time }
+          : getCandidateTransform(options.variant, options.residualPolicy, channel, time, options.duration, hiddenSpan);
         frameQuaternion
-          .fromArray(values, index)
+          .fromArray(interpolant.evaluate(transform.sourceTime))
           .premultiply(restQuaternion)
           .normalize()
-          .slerp(new Quaternion(), blend * (1 - strength))
+          .slerp(new Quaternion(), transform.blend * (1 - transform.strength))
           .toArray(values, index);
       }
       tracks.push(new QuaternionKeyframeTrack(
@@ -102,17 +101,19 @@ export async function loadBvhClip(url: string, vrm: VRM, options: BvhRetargetOpt
       const values = Array.from(sourceTrack.values);
       const originX = values[0] ?? 0;
       const originZ = values[2] ?? 0;
+      const interpolant = sourceTrack.InterpolantFactoryMethodLinear(new Float32Array(3));
       for (let index = 0; index < values.length; index += 3) {
         const keyframe = index / 3;
-        const normalizedTime = (sourceTrack.times[keyframe] ?? 0) / options.duration;
+        const time = sourceTrack.times[keyframe] ?? 0;
         const hiddenSpan = options.hiddenSpan ?? [0, 1];
-        const blend = options.variant === undefined ? 0 : boundaryBlend(normalizedTime, hiddenSpan);
-        const spanPosition = (normalizedTime - hiddenSpan[0]) / Math.max(0.001, hiddenSpan[1] - hiddenSpan[0]);
-        const rootResidual = evaluatePolicy(options.residualPolicy, normalizedTime, spanPosition)[0] ?? 0;
-        const strength = options.variant === undefined ? 1 : 1 - blend + blend * Math.max(0.1, Math.min(1.12, options.variant + rootResidual * blend));
-        values[index] = ((values[index] ?? 0) - originX) * CMU_HORIZONTAL_TO_METERS * strength;
-        values[index + 1] = (values[index + 1] ?? 0) * CMU_VERTICAL_TO_METERS;
-        values[index + 2] = ((values[index + 2] ?? 0) - originZ) * CMU_HORIZONTAL_TO_METERS * strength;
+        const transform = options.variant === undefined
+          ? { blend: 0, strength: 1, sourceTime: time }
+          : getCandidateTransform(options.variant, options.residualPolicy, 'Root', time, options.duration, hiddenSpan);
+        const sampled = interpolant.evaluate(transform.sourceTime);
+        const strength = 1 - transform.blend + transform.blend * transform.strength;
+        values[index] = ((sampled[0] ?? 0) - originX) * CMU_HORIZONTAL_TO_METERS * strength;
+        values[index + 1] = (sampled[1] ?? 0) * CMU_VERTICAL_TO_METERS;
+        values[index + 2] = ((sampled[2] ?? 0) - originZ) * CMU_HORIZONTAL_TO_METERS * strength;
       }
       tracks.push(new VectorKeyframeTrack(`${target.name}.position`, Array.from(sourceTrack.times), values));
     }

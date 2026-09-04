@@ -21,7 +21,12 @@ export function MotionArena() {
       previousTime.current = now;
       const state = experimentStore.getState();
       if (state.playback.playing) {
-        state.setPlaybackTime((state.playback.time + delta * state.playback.speed) % state.duration);
+        const hiddenStart = state.hiddenSpan[0] * state.duration;
+        const hiddenEnd = state.hiddenSpan[1] * state.duration;
+        const next = state.playback.time + delta * state.playback.speed;
+        state.setPlaybackTime(state.playback.loopHidden
+          ? (next < hiddenStart || next >= hiddenEnd ? hiddenStart + 0.02 : next)
+          : next % state.duration);
       }
       frame = requestAnimationFrame(tick);
     };
@@ -61,7 +66,7 @@ export function MotionArena() {
       </section>
 
       <div className={`arena-grid${agentView ? ' arena-grid--agent' : ''}`}>
-        <MotionPane side="candidate" label="Current reconstruction" sublabel="mutable candidate" />
+        <MotionPane side="candidate" label="Current reconstruction" sublabel="mutable surrogate" />
         {!agentView && <><div className="versus" aria-hidden="true">VS</div><MotionPane side="truth" label="Ground truth" sublabel="hidden CMU BVH · immutable" /></>}
       </div>
 

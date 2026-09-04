@@ -35,6 +35,8 @@ Motion Arena is a browser-native, RL-ready motion reconstruction environment for
 - Canonical BVH verifier operating before cosmetic VRM retargeting. It scores pose, root trajectory, and joint velocity over the hidden interval. Scores are deterministic and normalized to 0–100.
 - Reward weights live in one config: pose 0.55, root 0.20, velocity 0.15, contact 0.10. CMU files have no authoritative contact labels, so contact is `null` and its weight is proportionally redistributed; no metric is fabricated.
 - Tiny Residual Student: a `3 → 8 SiLU → 8 SiLU → 10 tanh` MLP with 194 float parameters / 776 bytes. It modifies root translation and nine important joints only inside the hidden interval with smooth boundary blending. A bounded asynchronous CEM-style search sees scalar reward and keeps improved policies.
+- Candidate priors combine joint/root attenuation with deterministic temporal lag inside the hidden span, so weak reconstructions are visibly different while known context remains locked. Every rollout jumps into a looping hidden-span comparison; the viewer can switch back to full-motion playback at any time.
+- Animated rollout cards make the search legible like a game tree: baseline, prepared search, and student generations show score, delta, seed, selected state, and best state, and each card replays that candidate on the LEFT.
 - Five WebMCP tools calling the same environment actions as the visible controls.
 - `?mode=spectator` shows candidate and reference. `?mode=agent` hides the reference motion and asset.
 - Three prepared BVH degradation tiers (baseline, medium, strong) receive real verifier scores at runtime, so the public demo remains functional when Modal is cold.

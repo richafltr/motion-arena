@@ -17,7 +17,7 @@ export const STUDENT_JOINTS = [
 ] as const;
 
 export function createZeroPolicy(generation = 0): ResidualPolicy {
-  return { architecture: '3-8-8-9', weights: Array(STUDENT_PARAMETER_COUNT).fill(0), generation };
+  return { architecture: '3-8-8-10', weights: Array(STUDENT_PARAMETER_COUNT).fill(0), generation };
 }
 
 export function evaluatePolicy(policy: ResidualPolicy | undefined, normalizedTime: number, spanPosition: number): number[] {
@@ -57,7 +57,7 @@ export function seededPolicy(seed: number, generation: number, center?: Residual
   const gaussian = () => Math.sqrt(-2 * Math.log(Math.max(1e-7, random()))) * Math.cos(2 * Math.PI * random());
   const base = center?.weights ?? createZeroPolicy().weights;
   return {
-    architecture: '3-8-8-9',
+    architecture: '3-8-8-10',
     generation,
     weights: base.map((value) => Number((value + gaussian() * sigma).toFixed(6))),
   };

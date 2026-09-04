@@ -23,7 +23,7 @@ export type ExecutionMode = 'browser-student' | 'momask';
 export type RolloutSource = 'baseline' | 'prepared-fallback' | 'local-student' | 'momask-live';
 
 export type ResidualPolicy = {
-  architecture: '3-8-8-9';
+  architecture: '3-8-8-10';
   weights: number[];
   generation: number;
 };
@@ -79,6 +79,7 @@ export type ExperimentState = {
     playing: boolean;
     time: number;
     speed: number;
+    loopHidden: boolean;
   };
   renderer: 'checking' | 'webgpu' | 'webgl2' | 'unavailable';
   webmcp: 'checking' | 'available' | 'unavailable';

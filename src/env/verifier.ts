@@ -2,7 +2,8 @@ import { AnimationUtils, Quaternion, type KeyframeTrack, Vector3 } from 'three';
 import { BVHLoader } from 'three/examples/jsm/loaders/BVHLoader.js';
 import type { MotionAsset, RewardMetrics } from '../types';
 import { ACTIVE_REWARD_WEIGHTS } from './rewardConfig';
-import { boundaryBlend, evaluatePolicy, STUDENT_JOINTS } from '../student/tinyResidualPolicy';
+import { STUDENT_JOINTS } from '../student/tinyResidualPolicy';
+import { getCandidateTransform } from '../motion/candidateTransform';
 
 const FPS = 120;
 const SAMPLE_COUNT = 72;
@@ -63,29 +64,29 @@ function canonicalDelta(tracks: ClipTracks, bone: string, time: number) {
 }
 
 function candidateDelta(asset: MotionAsset, tracks: ClipTracks, bone: string, time: number, duration: number, hidden: [number, number]) {
-  const delta = canonicalDelta(tracks, bone, time);
-  const normalized = time / duration;
-  const blend = boundaryBlend(normalized, hidden);
+  const transform = getCandidateTransform(
+    asset.variant,
+    asset.residualPolicy,
+    STUDENT_JOINTS.includes(bone as (typeof STUDENT_JOINTS)[number]) ? bone as (typeof STUDENT_JOINTS)[number] : null,
+    time,
+    duration,
+    hidden,
+  );
+  const delta = canonicalDelta(tracks, bone, transform.sourceTime);
+  const { blend, strength } = transform;
   if (blend <= 0) return delta;
-  const spanPosition = (normalized - hidden[0]) / (hidden[1] - hidden[0]);
-  const outputIndex = STUDENT_JOINTS.indexOf(bone as (typeof STUDENT_JOINTS)[number]);
-  const residual = outputIndex >= 0 ? evaluatePolicy(asset.residualPolicy, normalized, spanPosition)[outputIndex]! : 0;
-  const strength = Math.max(0.1, Math.min(1.12, asset.variant + residual * blend));
   return identity.clone().slerp(delta, 1 - blend + blend * strength).normalize();
 }
 
 function rootPosition(asset: MotionAsset, tracks: ClipTracks, time: number, duration: number, hidden: [number, number]) {
-  const values = sampleTrack(tracks.positions.get('Hips'), time, 3);
+  const transform = getCandidateTransform(asset.variant, asset.residualPolicy, 'Root', time, duration, hidden);
+  const values = sampleTrack(tracks.positions.get('Hips'), transform.sourceTime, 3);
   const origin = sampleTrack(tracks.positions.get('Hips'), 0, 3);
-  const normalized = time / duration;
-  const blend = boundaryBlend(normalized, hidden);
-  const spanPosition = (normalized - hidden[0]) / Math.max(0.001, hidden[1] - hidden[0]);
-  const rootResidual = evaluatePolicy(asset.residualPolicy, normalized, spanPosition)[0] ?? 0;
-  const strength = 1 - blend + blend * Math.max(0.1, Math.min(1.12, asset.variant + rootResidual * blend));
+  const strength = 1 - transform.blend + transform.blend * transform.strength;
   return new Vector3(
-    origin[0]! + (values[0]! - origin[0]!) * strength,
+    (values[0]! - origin[0]!) * strength,
     values[1]!,
-    origin[2]! + (values[2]! - origin[2]!) * strength,
+    (values[2]! - origin[2]!) * strength,
   );
 }
 

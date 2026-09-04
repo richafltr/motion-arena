@@ -99,6 +99,7 @@ export function MotionPane({ side, label, sublabel }: MotionPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selected = useExperimentStore((state) => state.selectedRolloutId);
+  const selectedScore = useExperimentStore((state) => state.rollouts.find((rollout) => rollout.id === state.selectedRolloutId)?.reward.combined);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
 
@@ -269,7 +270,7 @@ export function MotionPane({ side, label, sublabel }: MotionPaneProps) {
         <span className={`pane-dot pane-dot--${side}`} />
         <div>
           <h2>{label}</h2>
-          <p>{sublabel}{side === 'candidate' ? ` · ${selected.toUpperCase()}` : ''}</p>
+          <p>{sublabel}{side === 'candidate' ? ` · ${selected.toUpperCase()} · ${selectedScore?.toFixed(1) ?? '—'} match` : ''}</p>
         </div>
       </div>
       <div className="viewport" ref={containerRef}>
