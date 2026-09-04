@@ -1,5 +1,9 @@
 # Third-party notices
 
+## MoMask and HumanML3D
+
+Motion Arena is architected to call the frozen [MoMask](https://github.com/EricGuo5513/momask-codes) text-to-motion system on Modal and follows HumanML3D-style natural-language motion descriptions. MoMask model code or weights are not redistributed in this repository. Refer to the upstream projects for their respective licenses and dataset terms.
+
 ## pixiv/three-vrm
 
 Motion Arena uses `@pixiv/three-vrm`, `@pixiv/three-vrm-animation`, and the following example assets from [pixiv/three-vrm](https://github.com/pixiv/three-vrm):

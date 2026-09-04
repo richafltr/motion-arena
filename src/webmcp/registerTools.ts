@@ -1,4 +1,5 @@
-import { experimentStore, getBestRollout, getSelectedRollout } from '../state/experimentStore';
+import { environmentCore, experimentStore } from '../state/experimentStore';
+import type { RolloutAction } from '../types';
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };
 type WebMcpTool = {
@@ -7,17 +8,34 @@ type WebMcpTool = {
   inputSchema?: Record<string, unknown>;
   execute: (input: Record<string, unknown>) => Promise<ToolResult> | ToolResult;
 };
-type ModelContext = {
-  registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;
+type ModelContext = { registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void> };
+
+declare global { interface Document { modelContext?: ModelContext } }
+
+const result = (value: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
+const rolloutProperties = {
+  seed: { type: 'number', minimum: 0, maximum: 2147483647 },
+  temperature: { type: 'number', minimum: 0.1, maximum: 1.5 },
+  condScale: { type: 'number', minimum: 0.5, maximum: 8 },
+  topK: { type: 'number', minimum: 1, maximum: 100 },
+  timeSteps: { type: 'number', minimum: 4, maximum: 64 },
+  residualTemperature: { type: 'number', minimum: 0, maximum: 1.5 },
+  residualCondScale: { type: 'number', minimum: 0.5, maximum: 8 },
 };
 
-declare global {
-  interface Document { modelContext?: ModelContext; }
+function publicReward(rolloutId?: string) {
+  const rollout = environmentCore.getReward(rolloutId);
+  return {
+    rolloutId: rollout.id,
+    combinedScore: rollout.reward.combined,
+    pose: rollout.reward.poseMatch,
+    root: rollout.reward.rootMatch,
+    velocity: rollout.reward.velocityMatch,
+    contact: rollout.reward.contactMatch,
+    scoreDelta: rollout.scoreDelta,
+    rolloutsRemaining: experimentStore.getState().budgetRemaining,
+  };
 }
-
-const result = (value: unknown): ToolResult => ({
-  content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
-});
 
 export async function registerWebMcpTools(): Promise<() => void> {
   const context = new URLSearchParams(window.location.search).has('disableWebmcp') ? undefined : document.modelContext;
@@ -25,81 +43,49 @@ export async function registerWebMcpTools(): Promise<() => void> {
     experimentStore.getState().setWebMcp('unavailable');
     return () => undefined;
   }
-
   const controller = new AbortController();
   const tools: WebMcpTool[] = [
     {
       name: 'inspect_episode',
-      description: 'Inspect the active motion reconstruction episode, mask, selected rollout, and remaining budget.',
-      execute: () => {
-        const state = experimentStore.getState();
-        const selected = getSelectedRollout(state);
-        return result({
-          episodeId: state.episodeId,
-          instruction: state.instruction,
-          temporalMask: { knownPrefixEnd: state.hiddenSpan[0], hiddenEnd: state.hiddenSpan[1] },
-          durationSeconds: state.duration,
-          selectedRolloutId: selected?.id,
-          budgetRemaining: state.budgetRemaining,
-          status: state.status,
-        });
-      },
+      description: 'Inspect the instruction, hidden interval, execution mode, scores, budget, and allowed search ranges.',
+      execute: () => result(environmentCore.inspectEpisode()),
     },
     {
       name: 'run_rollout',
-      description: 'Run one deterministic candidate generation, spend one budget unit, and play it on the left.',
-      inputSchema: { type: 'object', properties: {} },
-      execute: async () => {
-        const rollout = await experimentStore.getState().runRollout();
-        return result({ rolloutId: rollout.id, seed: rollout.seed, aggregateReward: rollout.reward, budgetRemaining: experimentStore.getState().budgetRemaining });
-      },
+      description: 'Generate and verify one candidate with MoMask search parameters; the LEFT motion updates visibly.',
+      inputSchema: { type: 'object', properties: rolloutProperties },
+      execute: async (input) => result(publicReward((await environmentCore.runRollout(input as RolloutAction)).id)),
     },
     {
       name: 'inspect_reward',
-      description: 'Read aggregate reward signals for a rollout. Hidden ground-truth tokens are never returned.',
-      inputSchema: {
-        type: 'object',
-        properties: { rolloutId: { type: 'string', description: 'Rollout id; defaults to the selected rollout.' } },
-      },
-      execute: ({ rolloutId }) => {
-        const state = experimentStore.getState();
-        const rollout = typeof rolloutId === 'string'
-          ? state.rollouts.find((item) => item.id === rolloutId)
-          : getSelectedRollout(state);
-        if (!rollout) throw new Error('Unknown rollout id.');
-        return result({ rolloutId: rollout.id, ...rollout.reward });
-      },
+      description: 'Read deterministic aggregate verifier signals. Ground-truth arrays and hidden tokens are never returned.',
+      inputSchema: { type: 'object', properties: { rolloutId: { type: 'string' } } },
+      execute: ({ rolloutId }) => result(publicReward(typeof rolloutId === 'string' ? rolloutId : undefined)),
     },
     {
       name: 'refine_span',
-      description: 'Spend one rollout to deterministically refine a normalized time span and play the result on the left.',
+      description: 'Generate and verify a candidate targeted at one normalized temporal span.',
       inputSchema: {
         type: 'object',
-        properties: {
-          start: { type: 'number', minimum: 0, maximum: 1 },
-          end: { type: 'number', minimum: 0, maximum: 1 },
-        },
+        properties: { start: { type: 'number', minimum: 0, maximum: 1 }, end: { type: 'number', minimum: 0, maximum: 1 }, ...rolloutProperties },
         required: ['start', 'end'],
       },
-      execute: async ({ start, end }) => {
-        if (typeof start !== 'number' || typeof end !== 'number' || start < 0 || end > 1 || start >= end) {
-          throw new Error('start and end must define an increasing normalized span inside 0..1.');
-        }
-        const rollout = await experimentStore.getState().runRollout([start, end]);
-        return result({ rolloutId: rollout.id, refinedSpan: [start, end], aggregateReward: rollout.reward });
+      execute: async ({ start, end, ...input }) => {
+        if (typeof start !== 'number' || typeof end !== 'number') throw new Error('start and end are required numbers.');
+        const rollout = await environmentCore.refineSpan({ ...(input as RolloutAction), start, end });
+        return result({ refinedSpan: [start, end], ...publicReward(rollout.id) });
       },
     },
     {
       name: 'submit_best',
-      description: 'Submit the highest-scoring rollout currently in the arena.',
-      inputSchema: { type: 'object', properties: {} },
-      execute: () => {
-        const best = experimentStore.getState().submitBest();
-        return result({ submitted: true, rolloutId: best.id, score: best.reward.combined, bestKnown: getBestRollout(experimentStore.getState())?.id });
+      description: 'End the episode and submit the best aggregate-scoring rollout.',
+      inputSchema: { type: 'object', properties: { rolloutId: { type: 'string' } } },
+      execute: ({ rolloutId }) => {
+        const rollout = environmentCore.submitBest(typeof rolloutId === 'string' ? rolloutId : undefined);
+        return result({ submitted: true, ...publicReward(rollout.id) });
       },
     },
   ];
-
   try {
     await Promise.all(tools.map((tool) => context.registerTool(tool, { signal: controller.signal })));
     experimentStore.getState().setWebMcp('available');

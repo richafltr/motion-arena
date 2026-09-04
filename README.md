@@ -1,17 +1,49 @@
 # Motion Arena
 
-A browser-native, RL-style evaluation arena for the [OpenAI WebMCP Challenge](https://openai.com/webmcp-challenge/). A frontier agent repeatedly generates or refines a human-motion reconstruction, receives deterministic aggregate reward, and hillclimbs toward a held-out mocap trajectory.
+Motion Arena is a browser-native, RL-ready motion reconstruction environment for the OpenAI WebMCP Challenge. A policy repeatedly changes a candidate motion, receives deterministic aggregate reward over a hidden interval, and hillclimbs toward a held-out mocap trajectory. The same typed environment powers React, WebMCP, the tiny browser student, the Modal adapter, and the local HTTP/CLI harness.
 
-The first milestone is intentionally inference-free: it delivers the complete arena, motion playback architecture, canonical state, deterministic mock rollout loop, and WebMCP surface without bundling MoMask or exposing hidden ground-truth tokens.
+```text
+                    FRONTIER AGENT
+                         │
+                       WebMCP
+                         │
+                         ▼
+                  MOTION ARENA
+                         │
+             ┌───────────┴───────────┐
+             ▼                       ▼
+       Tiny Residual              Full MoMask
+       Student                    Modal GPU
+       Browser                    Frontier search
+             │                       │
+             └───────────┬───────────┘
+                         ▼
+                Candidate Motion
+                         │
+                         ▼
+                 Hidden Verifier
+                         │
+                         ▼
+                      Reward
+                         │
+                         └──────────→ next rollout
+```
 
-## Stack
+## What is real
 
-- Vite, React 19, strict TypeScript
-- Three.js WebGPU renderer with WebGL2 fallback
-- `@pixiv/three-vrm` + `@pixiv/three-vrm-animation`
-- Zustand as the single experiment state shared by UI and WebMCP
+- Two synchronized, orbitable VRM views with Three.js WebGPU and WebGL2 fallback.
+- Canonical BVH verifier operating before cosmetic VRM retargeting. It scores pose, root trajectory, and joint velocity over the hidden interval. Scores are deterministic and normalized to 0–100.
+- Reward weights live in one config: pose 0.55, root 0.20, velocity 0.15, contact 0.10. CMU files have no authoritative contact labels, so contact is `null` and its weight is proportionally redistributed; no metric is fabricated.
+- Tiny Residual Student: a `3 → 8 SiLU → 8 SiLU → 10 tanh` MLP with 194 float parameters / 776 bytes. It modifies root translation and nine important joints only inside the hidden interval with smooth boundary blending. A bounded asynchronous CEM-style search sees scalar reward and keeps improved policies.
+- Five WebMCP tools calling the same environment actions as the visible controls.
+- `?mode=spectator` shows candidate and reference. `?mode=agent` hides the reference motion and asset.
+- Three prepared BVH degradation tiers (baseline, medium, strong) receive real verifier scores at runtime, so the public demo remains functional when Modal is cold.
 
-## Run locally
+## What is conditional
+
+Full MoMask remains frozen behind `VITE_MOMASK_API_URL` in the browser or `MOMASK_API_URL` locally. A compatible `POST /rollouts` response must include a BVH `MotionAsset`. A successful request is labeled `Live MoMask · Modal GPU`; missing, failed, or unverifiable requests are labeled `Prepared fallback rollout`. The app never presents fallback output as live inference.
+
+## Run
 
 ```bash
 npm install
@@ -25,20 +57,38 @@ npm run lint
 npm run build
 ```
 
-Set `VITE_MOMASK_API_URL` to the Modal service origin when its compatible `POST /rollouts` endpoint is ready. The store automatically switches to the remote adapter and uses the returned motion asset. Without it, all rollouts remain deterministic and browser-local. `?forceWebgl=1&disableWebmcp=1` exercises both fallback paths.
+Docker research mode serves the built arena, verifier, and environment adapter:
 
-## WebMCP tools
+```bash
+docker compose up --build
+```
 
-`inspect_episode`, `run_rollout`, `inspect_reward`, `refine_span`, and `submit_best` are registered through `document.modelContext`. Tool handlers call the same Zustand actions as the visible controls. Reward inspection returns aggregate scores only.
+Then open <http://localhost:5173> or use the CLI against the running adapter:
 
-## Motion assets
+```bash
+npm run env -- inspect
+npm run env -- rollout '{"seed":17,"temperature":0.7,"condScale":3.8,"topK":40,"timeSteps":20}'
+npm run env -- reward r04
+npm run env -- refine '{"start":0.35,"end":0.62,"seed":18}'
+npm run env -- submit '{}'
+```
 
-Both panes load the same MIT-licensed pixiv VRM 1.0 sample. The right pane retargets one of ten local CMU-derived BVH clips onto the VRM normalized skeleton; a human-only dice control samples a new hidden episode and its natural-language caption. Mock candidates are deterministic quaternion attenuation variants of a cloned VRMA clip. Drag either viewport to orbit both cameras together through 360°, or scroll to zoom.
+See [`docs/AGENT_ENVIRONMENT.md`](./docs/AGENT_ENVIRONMENT.md) for a five-rollout frontier-agent hillclimb and [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md) for the 60-second demo.
 
-The selected held-out BVH path is deliberately absent from WebMCP tool results. Only the caption, mask, episode state, and aggregate rewards are exposed to the agent.
+## WebMCP advantage
 
-See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for source and license attribution.
+`inspect_episode`, `run_rollout`, `inspect_reward`, `refine_span`, and `submit_best` are registered through `document.modelContext`. They expose the useful agent action space—not DOM click wrappers—and visibly mutate the same canonical arena state. Reward responses contain aggregates only; hidden BVH arrays, asset URLs, and MoMask token IDs are never returned.
 
-## License
+## Project map
 
-MIT © 2026 Motion Arena contributors.
+- `src/env/`: framework-independent contracts, parameter ranges, scoring weights, and canonical BVH verifier
+- `src/student/`: tiny residual MLP and deterministic policy perturbations
+- `src/state/experimentStore.ts`: the single live episode state used by UI and WebMCP
+- `src/api/momaskClient.ts`: frozen Modal MoMask adapter
+- `src/webmcp/`: five browser-native tools
+- `server/` and `scripts/env.ts`: local HTTP and CLI adapters over the same contracts
+- `src/motion/`: BVH/VRMA loading, calibrated retargeting, synchronized playback, camera sync
+
+## Attribution and license
+
+Motion Arena is MIT licensed. It builds on [MoMask](https://github.com/EricGuo5513/momask-codes), [three-vrm](https://github.com/pixiv/three-vrm), [three-vrm-animation](https://github.com/pixiv/three-vrm), and the [bvh2vrma](https://github.com/vrm-c/bvh2vrma) retargeting approach. Mocap examples are from the CMU Graphics Lab Motion Capture Database; HumanML3D is the intended text/motion convention for MoMask-facing captions. Exact asset and license details are in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) and [`public/motions/README.md`](./public/motions/README.md).

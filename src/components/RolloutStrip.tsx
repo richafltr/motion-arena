@@ -1,19 +1,25 @@
-import { ArrowRight, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, BrainCircuit, Check, Pause, RotateCcw, Sparkles } from 'lucide-react';
 import { getBestRollout, getSelectedRollout, useExperimentStore } from '../state/experimentStore';
 import { ScoreDisplay } from './ScoreDisplay';
 
 export function RolloutStrip() {
   const state = useExperimentStore();
+  const agentView = new URLSearchParams(window.location.search).get('mode') === 'agent';
   const selected = getSelectedRollout(state);
   const best = getBestRollout(state);
 
   const handleRollout = () => { void state.runRollout(); };
+  const sourceLabel = selected?.source === 'momask-live'
+    ? 'Live MoMask rollout'
+    : selected?.source === 'local-student'
+      ? 'Tiny Residual Student'
+      : 'Prepared fallback rollout';
 
   return (
     <section className="rollout-strip" aria-label="Episode rollout controls">
       <div className="briefing-row">
         <div className="instruction-block">
-          <span className="eyebrow">Ground-truth caption · motion visible, asset withheld</span>
+          <span className="eyebrow">Ground-truth caption · {agentView ? 'motion + asset withheld' : 'motion visible, asset withheld'}</span>
           <p>“{state.instruction}”</p>
         </div>
         <div className="score-cluster">
@@ -32,6 +38,34 @@ export function RolloutStrip() {
             {state.status === 'running' ? 'Rolling…' : 'Run rollout'}
           </button>
         </div>
+      </div>
+
+      <div className="research-row">
+        <div className="metric-grid" aria-label="Deterministic verifier metrics">
+          <span><em>Pose</em><strong>{selected?.reward.poseMatch.toFixed(1)}</strong></span>
+          <span><em>Root</em><strong>{selected?.reward.rootMatch.toFixed(1)}</strong></span>
+          <span><em>Velocity</em><strong>{selected?.reward.velocityMatch.toFixed(1)}</strong></span>
+          <span><em>Contact</em><strong>{selected?.reward.contactMatch?.toFixed(1) ?? 'N/A'}</strong></span>
+        </div>
+        <div className="learning-controls">
+          <div className="mode-switch" aria-label="Execution mode">
+            <button className={state.executionMode === 'browser-student' ? 'active' : ''} onClick={() => state.setExecutionMode('browser-student')}>Local student</button>
+            <button className={state.executionMode === 'momask' ? 'active' : ''} onClick={() => state.setExecutionMode('momask')}>Full MoMask</button>
+          </div>
+          {state.learning.running ? (
+            <button className="learning-button" onClick={state.pauseLocalLearning}><Pause size={13} /> Pause</button>
+          ) : (
+            <button className="learning-button" onClick={state.startLocalLearning} disabled={state.budgetRemaining === 0 || state.status === 'submitted'}><BrainCircuit size={13} /> Start local learning</button>
+          )}
+          <button className="research-icon" onClick={() => { void state.resetEpisode(); }} aria-label="Reset episode"><RotateCcw size={13} /></button>
+        </div>
+      </div>
+
+      <div className="research-status">
+        <span className="mode-pill">{state.executionMode === 'browser-student' ? 'LOCAL STUDENT · browser' : `FULL MOMASK · ${state.modalStatus === 'live' ? 'Modal live' : 'fallback'}`}</span>
+        <span>generation {state.learning.generation}</span>
+        <span>evaluated {state.learning.evaluated}</span>
+        <span>{sourceLabel}</span>
       </div>
 
       <div className="mask-section">
@@ -54,7 +88,7 @@ export function RolloutStrip() {
                 onClick={() => state.selectRollout(rollout.id)}
                 title={`${rollout.id.toUpperCase()} · seed ${rollout.seed} · ${rollout.note}`}
               >
-                {rollout.reward.combined.toFixed(1)}
+                <small>#{String(index + 1).padStart(2, '0')}</small>{rollout.reward.combined.toFixed(1)}
               </button>
               {index < state.rollouts.length - 1 && <ArrowRight size={12} />}
             </span>
@@ -63,7 +97,7 @@ export function RolloutStrip() {
         <div className="rollout-meta">
           <span>{selected?.id.toUpperCase()}</span>
           <span>seed {selected?.seed}</span>
-          <span>g {selected?.settings.guidance.toFixed(2)}</span>
+          <span>cfg {selected?.settings.condScale.toFixed(2)}</span>
           {state.status === 'submitted' && <span className="submitted"><Check size={12} /> submitted</span>}
         </div>
       </div>

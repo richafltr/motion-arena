@@ -1,14 +1,23 @@
 import { create } from 'zustand';
 import { momaskClient } from '../api/momaskClient';
-import { createDeterministicRollout, demoRollouts } from '../data/demoMotions';
+import { createPreparedRollouts, DEFAULT_SETTINGS, demoRollouts } from '../data/demoMotions';
 import { hiddenEpisodes } from '../data/hiddenEpisodes';
-import type { ExperimentState, Rollout } from '../types';
+import { bestRollout, inspectEpisode, normalizeRolloutAction, rewardFor, type EnvironmentApi } from '../env/core';
+import { verifyCandidate } from '../env/verifier';
+import { seededPolicy, STUDENT_PARAMETER_COUNT, STUDENT_OUTPUTS } from '../student/tinyResidualPolicy';
+import type { ExecutionMode, ExperimentState, MotionAsset, Rollout, RolloutAction } from '../types';
 
 type ExperimentActions = {
+  initializeEnvironment: () => Promise<void>;
   selectRollout: (id: string) => void;
   rollHiddenEpisode: () => void;
-  runRollout: (span?: [number, number]) => Promise<Rollout>;
-  submitBest: () => Rollout;
+  runRollout: (action?: RolloutAction) => Promise<Rollout>;
+  refineSpan: (start: number, end: number, action?: RolloutAction) => Promise<Rollout>;
+  submitBest: (rolloutId?: string) => Rollout;
+  resetEpisode: () => Promise<void>;
+  setExecutionMode: (mode: ExecutionMode) => void;
+  startLocalLearning: () => void;
+  pauseLocalLearning: () => void;
   togglePlayback: () => void;
   setPlaybackTime: (time: number) => void;
   setPlaybackSpeed: (speed: number) => void;
@@ -20,31 +29,67 @@ type ExperimentActions = {
 
 export type ExperimentStore = ExperimentState & ExperimentActions;
 
+const initialGroundTruth = hiddenEpisodes[0]?.groundTruth ?? {
+  id: 'cmu-01-01', label: 'Hidden CMU motion', url: '/motions/cmu-playground/01_01.bvh', variant: 1, source: 'bvh' as const,
+};
+
 const initialState: ExperimentState = {
   episodeId: 'arena-7fd1c2a4',
   episodeIndex: 0,
   instruction: hiddenEpisodes[0]?.caption ?? 'A person makes several forward jumps, then turns around.',
-  groundTruth: hiddenEpisodes[0]?.groundTruth ?? {
-    id: 'cmu-01-01', label: 'Hidden CMU motion', url: '/motions/cmu-playground/01_01.bvh', variant: 1, source: 'bvh',
-  },
+  groundTruth: initialGroundTruth,
+  executionMode: import.meta.env.VITE_MOTION_ARENA_MODE === 'momask' ? 'momask' : 'browser-student',
+  modalStatus: momaskClient.configured ? 'checking' : 'fallback',
   hiddenSpan: [0.31, 0.7],
   duration: 8,
   budgetTotal: 12,
-  budgetRemaining: 8,
+  budgetRemaining: 9,
   rollouts: demoRollouts,
   selectedRolloutId: demoRollouts.at(-1)?.id ?? 'r01',
   bestRolloutId: demoRollouts.at(-1)?.id ?? 'r01',
-  status: 'ready',
+  status: 'running',
   playback: { playing: true, time: 0, speed: 1 },
   renderer: 'checking',
   webmcp: 'checking',
   error: null,
+  learning: { running: false, generation: 0, evaluated: 0 },
 };
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
+async function scorePrepared(reference: ExperimentState['groundTruth'], span: [number, number], duration: number) {
+  const rollouts = createPreparedRollouts(reference);
+  let prior = 0;
+  for (const rollout of rollouts) {
+    rollout.reward = await verifyCandidate(rollout.motion, reference, span, duration);
+    rollout.scoreDelta = Number((rollout.reward.combined - prior).toFixed(1));
+    prior = rollout.reward.combined;
+  }
+  return rollouts;
+}
+
 export const useExperimentStore = create<ExperimentStore>((set, get) => ({
   ...initialState,
+
+  initializeEnvironment: async () => {
+    const state = get();
+    set({ status: 'running', error: null });
+    try {
+      const rollouts = await scorePrepared(state.groundTruth, state.hiddenSpan, state.duration);
+      if (get().episodeId !== state.episodeId) return;
+      const best = rollouts.reduce((leader, item) => item.reward.combined > leader.reward.combined ? item : leader);
+      set({
+        rollouts,
+        selectedRolloutId: best.id,
+        bestRolloutId: best.id,
+        budgetRemaining: state.budgetTotal - rollouts.length,
+        status: 'ready',
+        modalStatus: momaskClient.configured ? 'checking' : 'fallback',
+      });
+    } catch (cause) {
+      set({ status: 'ready', error: cause instanceof Error ? cause.message : 'Verifier initialization failed.' });
+    }
+  },
 
   selectRollout: (id) => {
     if (get().rollouts.some((rollout) => rollout.id === id)) {
@@ -55,60 +100,84 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
   rollHiddenEpisode: () => {
     const state = get();
     if (hiddenEpisodes.length < 2) return;
+    state.pauseLocalLearning();
     const random = new Uint32Array(1);
     crypto.getRandomValues(random);
     const offset = 1 + ((random[0] ?? 0) % (hiddenEpisodes.length - 1));
     const episodeIndex = (state.episodeIndex + offset) % hiddenEpisodes.length;
     const episode = hiddenEpisodes[episodeIndex];
     if (!episode) return;
-    const rollouts = demoRollouts.map((rollout) => ({ ...rollout, timestamp: new Date().toISOString() }));
     set({
       episodeId: `arena-${crypto.randomUUID().slice(0, 8)}`,
       episodeIndex,
       instruction: episode.caption,
       groundTruth: episode.groundTruth,
-      rollouts,
-      selectedRolloutId: rollouts.at(-1)?.id ?? 'r04',
-      bestRolloutId: rollouts.at(-1)?.id ?? 'r04',
-      budgetRemaining: initialState.budgetRemaining,
-      status: 'ready',
+      rollouts: createPreparedRollouts(episode.groundTruth),
+      selectedRolloutId: 'r03',
+      bestRolloutId: 'r03',
+      budgetRemaining: initialState.budgetTotal - 3,
+      status: 'running',
+      learning: { running: false, generation: 0, evaluated: 0 },
       playback: { ...state.playback, time: 0, playing: true },
       error: null,
     });
+    void get().initializeEnvironment();
   },
 
-  runRollout: async (span) => {
+  runRollout: async (input = {}) => {
     const state = get();
-    if (state.budgetRemaining <= 0) {
-      const message = 'Rollout budget exhausted.';
-      set({ error: message });
-      throw new Error(message);
-    }
-    if (state.status === 'running') {
-      throw new Error('A rollout is already running.');
-    }
-
+    if (state.budgetRemaining <= 0) throw new Error('Rollout budget exhausted.');
+    if (state.status === 'submitted') throw new Error('This episode has already been submitted.');
+    if (state.status === 'running') throw new Error('A rollout is already running.');
+    const action = normalizeRolloutAction(input, 2203 + state.rollouts.length * 173);
     set({ status: 'running', error: null });
     try {
-      const candidate = createDeterministicRollout(get().rollouts.length, span);
-      if (momaskClient.mode === 'mock') await delay(620);
-      const rollout = momaskClient.mode === 'remote'
-        ? {
-            ...candidate,
-            motion: (await momaskClient.generate({
-              episodeId: state.episodeId,
-              seed: candidate.seed,
-              settings: candidate.settings,
-            })).motion,
-            note: 'MoMask endpoint rollout',
-          }
-        : candidate;
-
+      let motion: MotionAsset = {
+        ...state.groundTruth,
+        id: `${state.groundTruth.id}-fallback-${state.rollouts.length + 1}`,
+        label: 'Prepared fallback BVH',
+        source: 'bvh-residual' as const,
+        variant: Number(Math.min(0.94, 0.58 + action.condScale * 0.035 + action.timeSteps * 0.002).toFixed(3)),
+      };
+      let source: Rollout['source'] = 'prepared-fallback';
+      let note = 'Prepared fallback rollout';
+      if (momaskClient.configured && state.executionMode === 'momask') {
+        try {
+          const response = await momaskClient.generate({ episodeId: state.episodeId, instruction: state.instruction, action });
+          motion = response.motion;
+          source = 'momask-live';
+          note = 'Live MoMask · Modal GPU';
+          set({ modalStatus: 'live' });
+        } catch (error) {
+          console.warn('Modal rollout unavailable; using prepared fallback.', error);
+          set({ modalStatus: 'fallback' });
+          note = 'Prepared fallback rollout · Modal unavailable';
+        }
+      } else {
+        await delay(220);
+        set({ modalStatus: 'fallback' });
+      }
+      const reward = await verifyCandidate(motion, state.groundTruth, [action.maskStart, action.maskEnd], state.duration);
+      const prior = rewardFor(state).reward.combined;
+      const rollout: Rollout = {
+        id: `r${String(state.rollouts.length + 1).padStart(2, '0')}`,
+        seed: action.seed,
+        settings: {
+          ...DEFAULT_SETTINGS,
+          ...action,
+          refinementStrength: motion.variant,
+          span: [action.maskStart, action.maskEnd],
+        },
+        reward,
+        timestamp: new Date().toISOString(),
+        motion,
+        note,
+        source,
+        scoreDelta: Number((reward.combined - prior).toFixed(1)),
+      };
       set((current) => {
         const rollouts = [...current.rollouts, rollout];
-        const best = rollouts.reduce((leader, item) =>
-          item.reward.combined > leader.reward.combined ? item : leader,
-        );
+        const best = rollouts.reduce((leader, item) => item.reward.combined > leader.reward.combined ? item : leader);
         return {
           rollouts,
           selectedRolloutId: rollout.id,
@@ -126,21 +195,104 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
     }
   },
 
-  submitBest: () => {
-    const state = get();
-    const best = state.rollouts.find((rollout) => rollout.id === state.bestRolloutId);
-    if (!best) throw new Error('No best rollout is available.');
-    set({ status: 'submitted', selectedRolloutId: best.id });
-    return best;
+  refineSpan: (start, end, action = {}) => {
+    if (start < 0 || end > 1 || start >= end) throw new Error('start and end must define an increasing span inside 0..1.');
+    return get().runRollout({ ...action, maskStart: start, maskEnd: end });
   },
 
+  submitBest: (rolloutId) => {
+    const state = get();
+    const submitted = rolloutId ? rewardFor(state, rolloutId) : bestRollout(state);
+    set({ status: 'submitted', selectedRolloutId: submitted.id, learning: { ...state.learning, running: false } });
+    return submitted;
+  },
+
+  resetEpisode: async () => {
+    const state = get();
+    state.pauseLocalLearning();
+    set({
+      rollouts: createPreparedRollouts(state.groundTruth), selectedRolloutId: 'r03', bestRolloutId: 'r03',
+      budgetRemaining: state.budgetTotal - 3, status: 'running', error: null,
+      learning: { running: false, generation: 0, evaluated: 0 },
+      playback: { ...state.playback, time: 0, playing: false },
+    });
+    await get().initializeEnvironment();
+  },
+
+  setExecutionMode: (executionMode) => {
+    get().pauseLocalLearning();
+    set({ executionMode, error: null });
+  },
+
+  startLocalLearning: () => {
+    if (get().learning.running || get().budgetRemaining <= 0) return;
+    set((state) => ({
+      executionMode: 'browser-student',
+      status: 'ready',
+      learning: { ...state.learning, running: true },
+    }));
+    void (async () => {
+      while (get().learning.running && get().budgetRemaining > 0 && get().status !== 'submitted') {
+        const state = get();
+        const generation = state.learning.generation + 1;
+        const leader = bestRollout(state);
+        const center = leader.motion.residualPolicy;
+        const batchSize = Math.min(2, state.budgetRemaining);
+        for (let candidate = 0; candidate < batchSize; candidate += 1) {
+          if (!get().learning.running) break;
+          const seed = 9109 + generation * 101 + candidate * 17;
+          const policy = seededPolicy(seed, generation, center, Math.max(0.025, 0.12 / generation));
+          // CEM exploration includes a deterministic positive residual direction, then keeps it only if reward improves.
+          if (candidate === 0) {
+            const biasStart = STUDENT_PARAMETER_COUNT - STUDENT_OUTPUTS;
+            for (let index = biasStart; index < STUDENT_PARAMETER_COUNT; index += 1) {
+              policy.weights[index] = Number(((center?.weights[index] ?? 0) + 0.24 / Math.sqrt(generation)).toFixed(6));
+            }
+          }
+          const current = get();
+          const motion = {
+            ...current.groundTruth,
+            id: `${current.groundTruth.id}-student-g${generation}-${candidate + 1}`,
+            label: `Tiny Residual Student g${generation}`,
+            source: 'bvh-residual' as const,
+            variant: leader.motion.variant,
+            residualPolicy: policy,
+          };
+          const reward = await verifyCandidate(motion, current.groundTruth, current.hiddenSpan, current.duration);
+          const rollout: Rollout = {
+            id: `r${String(current.rollouts.length + 1).padStart(2, '0')}`,
+            seed,
+            settings: { ...DEFAULT_SETTINGS, seed, refinementStrength: motion.variant },
+            reward,
+            timestamp: new Date().toISOString(),
+            motion,
+            note: `Tiny Residual Student · generation ${generation}`,
+            source: 'local-student',
+            scoreDelta: Number((reward.combined - leader.reward.combined).toFixed(1)),
+          };
+          set((latest) => {
+            const rollouts = [...latest.rollouts, rollout];
+            const best = rollouts.reduce((winner, item) => item.reward.combined > winner.reward.combined ? item : winner);
+            return {
+              rollouts,
+              selectedRolloutId: best.id === rollout.id ? rollout.id : latest.selectedRolloutId,
+              bestRolloutId: best.id,
+              budgetRemaining: latest.budgetRemaining - 1,
+              learning: { running: latest.learning.running, generation, evaluated: latest.learning.evaluated + 1 },
+              playback: best.id === rollout.id ? { ...latest.playback, time: 0, playing: true } : latest.playback,
+            };
+          });
+          await delay(90);
+        }
+      }
+      set((state) => ({ learning: { ...state.learning, running: false }, status: state.status === 'submitted' ? 'submitted' : 'ready' }));
+    })();
+  },
+
+  pauseLocalLearning: () => set((state) => ({ learning: { ...state.learning, running: false } })),
   togglePlayback: () => set((state) => ({ playback: { ...state.playback, playing: !state.playback.playing } })),
-  setPlaybackTime: (time) => set((state) => ({
-    playback: { ...state.playback, time: Math.max(0, Math.min(state.duration, time)) },
-  })),
-  setPlaybackSpeed: (speed) => set((state) => ({
-    playback: { ...state.playback, speed: Math.max(0.25, Math.min(2, speed)) },
-  })),
+  setPlaybackTime: (time) => set((state) => ({ playback: { ...state.playback, time: Math.max(0, Math.min(state.duration, time)) } })),
+  setPlaybackSpeed: (speed) => set((state) => ({ playback: { ...state.playback, speed: Math.max(0.25, Math.min(2, speed)) } })),
   resetPlayback: () => set((state) => ({ playback: { ...state.playback, time: 0, playing: false } })),
   setRenderer: (renderer) => set({ renderer }),
   setWebMcp: (webmcp) => set({ webmcp }),
@@ -152,8 +304,14 @@ export const experimentStore = {
   subscribe: useExperimentStore.subscribe,
 };
 
-export const getSelectedRollout = (state: ExperimentStore) =>
-  state.rollouts.find((rollout) => rollout.id === state.selectedRolloutId) ?? state.rollouts[0];
+export const environmentCore: EnvironmentApi = {
+  inspectEpisode: () => inspectEpisode(useExperimentStore.getState()),
+  runRollout: (action) => useExperimentStore.getState().runRollout(action),
+  getReward: (rolloutId) => rewardFor(useExperimentStore.getState(), rolloutId),
+  refineSpan: ({ start, end, ...action }) => useExperimentStore.getState().refineSpan(start, end, action),
+  submitBest: (rolloutId) => useExperimentStore.getState().submitBest(rolloutId),
+  reset: () => useExperimentStore.getState().resetEpisode(),
+};
 
-export const getBestRollout = (state: ExperimentStore) =>
-  state.rollouts.find((rollout) => rollout.id === state.bestRolloutId) ?? state.rollouts[0];
+export const getSelectedRollout = (state: ExperimentStore) => rewardFor(state);
+export const getBestRollout = (state: ExperimentStore) => bestRollout(state);

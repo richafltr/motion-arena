@@ -164,7 +164,21 @@ export function MotionPane({ side, label, sublabel }: MotionPaneProps) {
             const state = experimentStore.getState();
             let clip;
             if (side === 'truth' || asset.source === 'bvh') {
-              clip = await loadBvhClip(asset.url, vrm, { duration: state.duration });
+              clip = await loadBvhClip(asset.url, vrm, {
+                duration: state.duration,
+                ...(side === 'candidate' ? {
+                  variant: asset.variant,
+                  hiddenSpan: state.hiddenSpan,
+                  residualPolicy: asset.residualPolicy,
+                } : {}),
+              });
+            } else if (asset.source === 'bvh-residual') {
+              clip = await loadBvhClip(asset.url, vrm, {
+                duration: state.duration,
+                variant: asset.variant,
+                hiddenSpan: state.hiddenSpan,
+                residualPolicy: asset.residualPolicy,
+              });
             } else if (asset.source === 'vrma') {
               clip = fitClipDuration(await loadVrmaClip(asset.url, vrm), state.duration);
             } else {
@@ -260,7 +274,7 @@ export function MotionPane({ side, label, sublabel }: MotionPaneProps) {
       </div>
       <div className="viewport" ref={containerRef}>
         <canvas ref={canvasRef} />
-        {loadState === 'loading' && <div className="viewport-state"><span className="spinner" />Loading VRM + {side === 'truth' ? 'BVH' : 'VRMA'}…</div>}
+        {loadState === 'loading' && <div className="viewport-state"><span className="spinner" />Loading VRM + motion…</div>}
         {loadState === 'error' && <div className="viewport-state viewport-state--error">{error}</div>}
         {loadState === 'ready' && <div className="orbit-hint">Drag to orbit · scroll to zoom</div>}
         <div className="viewport-corners" aria-hidden="true" />

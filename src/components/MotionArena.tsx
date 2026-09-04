@@ -10,6 +10,8 @@ export function MotionArena() {
   const webmcp = useExperimentStore((state) => state.webmcp);
   const episodeId = useExperimentStore((state) => state.episodeId);
   const rollHiddenEpisode = useExperimentStore((state) => state.rollHiddenEpisode);
+  const executionMode = useExperimentStore((state) => state.executionMode);
+  const agentView = new URLSearchParams(window.location.search).get('mode') === 'agent';
   const previousTime = useRef(performance.now());
 
   useEffect(() => {
@@ -37,6 +39,7 @@ export function MotionArena() {
         </a>
         <div className="status-line">
           <span title="Renderer"><Cpu size={13} />{renderer === 'checking' ? 'Renderer' : renderer.toUpperCase()}</span>
+          <span className="execution-badge">{executionMode === 'browser-student' ? 'Local student · browser' : 'Full MoMask · Modal'}</span>
           <span className={webmcp === 'available' ? 'status-good' : ''} title="Browser-native agent tools">
             <Radio size={13} />WebMCP {webmcp === 'available' ? 'live' : webmcp === 'checking' ? 'checking' : 'unavailable'}
           </span>
@@ -57,10 +60,9 @@ export function MotionArena() {
         </div>
       </section>
 
-      <div className="arena-grid">
+      <div className={`arena-grid${agentView ? ' arena-grid--agent' : ''}`}>
         <MotionPane side="candidate" label="Current reconstruction" sublabel="mutable candidate" />
-        <div className="versus" aria-hidden="true">VS</div>
-        <MotionPane side="truth" label="Ground truth" sublabel="hidden CMU BVH · immutable" />
+        {!agentView && <><div className="versus" aria-hidden="true">VS</div><MotionPane side="truth" label="Ground truth" sublabel="hidden CMU BVH · immutable" /></>}
       </div>
 
       <Timeline />
