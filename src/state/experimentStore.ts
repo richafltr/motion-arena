@@ -4,6 +4,7 @@ import { createPreparedRollouts, DEFAULT_SETTINGS, demoRollouts } from '../data/
 import { hiddenEpisodes } from '../data/hiddenEpisodes';
 import { bestRollout, inspectEpisode, normalizeRolloutAction, rewardFor, type EnvironmentApi } from '../env/core';
 import { verifyCandidate } from '../env/verifier';
+import { getHiddenComparisonWindow } from '../motion/candidateTransform';
 import { seededPolicy, STUDENT_PARAMETER_COUNT, STUDENT_OUTPUTS } from '../student/tinyResidualPolicy';
 import type { ExecutionMode, ExperimentState, MotionAsset, Rollout, RolloutAction } from '../types';
 
@@ -58,8 +59,10 @@ const initialState: ExperimentState = {
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 let learningRunId = 0;
-const focusHiddenTime = (state: Pick<ExperimentState, 'hiddenSpan' | 'duration'>) =>
-  (state.hiddenSpan[0] + Math.min(0.08, (state.hiddenSpan[1] - state.hiddenSpan[0]) * 0.24)) * state.duration;
+const focusHiddenTime = (state: Pick<ExperimentState, 'hiddenSpan' | 'duration'>) => {
+  const [start, end] = getHiddenComparisonWindow(state.hiddenSpan, state.duration);
+  return start + Math.min(0.08, (end - start) * 0.12);
+};
 
 async function scorePrepared(reference: ExperimentState['groundTruth'], span: [number, number], duration: number) {
   const rollouts = createPreparedRollouts(reference);

@@ -12,9 +12,6 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
   type Camera,
-  type Material,
-  type Object3D,
-  type Texture,
 } from 'three';
 import { AVATAR_URL, CANDIDATE_MOTION_URL } from '../data/demoMotions';
 import { fitClipDuration, loadBvhClip } from '../motion/bvh';
@@ -23,6 +20,7 @@ import { loadAvatar } from '../motion/loadAvatar';
 import { SynchronizedMotionPlayer } from '../motion/player';
 import { createCandidateClip } from '../motion/retarget';
 import { loadVrmaClip } from '../motion/vrma';
+import { disposeScene } from '../motion/dispose';
 import { experimentStore, useExperimentStore } from '../state/experimentStore';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { MotionAsset } from '../types';
@@ -79,20 +77,6 @@ async function createRenderer(canvas: HTMLCanvasElement): Promise<ArenaRenderer>
     dispose: () => renderer.dispose(),
     kind: 'webgl2',
   };
-}
-
-function disposeScene(root: Object3D) {
-  root.traverse((object) => {
-    const mesh = object as Mesh;
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
-    for (const material of materials as Material[]) {
-      for (const value of Object.values(material)) {
-        if (value && typeof value === 'object' && 'isTexture' in value) (value as Texture).dispose();
-      }
-      material.dispose();
-    }
-  });
 }
 
 export function MotionPane({ side, label, sublabel }: MotionPaneProps) {

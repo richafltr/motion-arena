@@ -4,6 +4,7 @@ import { experimentStore, useExperimentStore } from '../state/experimentStore';
 import { MotionPane } from './MotionPane';
 import { RolloutStrip } from './RolloutStrip';
 import { Timeline } from './Timeline';
+import { getHiddenComparisonWindow } from '../motion/candidateTransform';
 
 export function MotionArena() {
   const renderer = useExperimentStore((state) => state.renderer);
@@ -21,8 +22,7 @@ export function MotionArena() {
       previousTime.current = now;
       const state = experimentStore.getState();
       if (state.playback.playing) {
-        const hiddenStart = state.hiddenSpan[0] * state.duration;
-        const hiddenEnd = state.hiddenSpan[1] * state.duration;
+        const [hiddenStart, hiddenEnd] = getHiddenComparisonWindow(state.hiddenSpan, state.duration);
         const next = state.playback.time + delta * state.playback.speed;
         state.setPlaybackTime(state.playback.loopHidden
           ? (next < hiddenStart || next >= hiddenEnd ? hiddenStart + 0.02 : next)
