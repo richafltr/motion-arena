@@ -1,76 +1,76 @@
 import type { HiddenEpisode } from '../types';
 
-const motion = (trial: number, label: string) => ({
-  id: `cmu-01-${String(trial).padStart(2, '0')}`,
-  label,
-  url: `/motions/cmu-playground/01_${String(trial).padStart(2, '0')}.bvh`,
-  variant: 1,
-  source: 'bvh' as const,
-});
+const motion = (subject: number, trial: number, label: string) => {
+  const stem = `${String(subject).padStart(2, '0')}_${String(trial).padStart(2, '0')}`;
+  return {
+    id: `cmu-${stem.replace('_', '-')}`,
+    label,
+    url: `/motions/cmu-diverse/${stem}.bvh`,
+    variant: 1,
+    source: 'bvh' as const,
+  };
+};
 
-/**
- * Human-curated captions derived from CMU's descriptions for Subject 1,
- * playground trials 1–10. Asset identity stays out of WebMCP responses.
- */
+/** Diverse, human-curated CMU actions. Asset identity stays out of WebMCP responses. */
 export const hiddenEpisodes: HiddenEpisode[] = [
   {
-    id: 'heldout-playground-01', subject: 1, trial: 1,
-    caption: 'A person makes several forward jumps, then turns around.',
-    sourceDescription: 'playground - forward jumps, turn around',
-    groundTruth: motion(1, 'Forward jumps and turn'),
+    id: 'heldout-swordplay', subject: 2, trial: 7,
+    caption: 'A person advances and performs a sequence of sweeping sword-fighting strikes.',
+    sourceDescription: 'swordplay',
+    groundTruth: motion(2, 7, 'Sword-fighting sequence'),
   },
   {
-    id: 'heldout-playground-02', subject: 1, trial: 2,
-    caption: 'A person reaches upward and climbs onto playground equipment.',
-    sourceDescription: 'playground - climb',
-    groundTruth: motion(2, 'Climb'),
+    id: 'heldout-basketball-shot', subject: 6, trial: 15,
+    caption: 'A person dribbles a basketball forward, gathers it, and takes a shot.',
+    sourceDescription: 'basketball - dribble, shoot',
+    groundTruth: motion(6, 15, 'Basketball dribble and shot'),
   },
   {
-    id: 'heldout-playground-03', subject: 1, trial: 3,
-    caption: 'A person climbs up, hangs from both arms, and swings their body.',
-    sourceDescription: 'playground - climb, hang, swing',
-    groundTruth: motion(3, 'Climb, hang, and swing'),
+    id: 'heldout-dance', subject: 5, trial: 7,
+    caption: 'A dancer performs small leaps, holds an arabesque, spins off-axis, and turns.',
+    sourceDescription: 'dance - small jetes, attitude/arabesque, shifted-axis pirouette, turn',
+    groundTruth: motion(5, 7, 'Leaps, arabesque, and pirouette'),
   },
   {
-    id: 'heldout-playground-04', subject: 1, trial: 4,
-    caption: 'A person steadily climbs upward using both arms and legs.',
-    sourceDescription: 'playground - climb',
-    groundTruth: motion(4, 'Steady climb'),
+    id: 'heldout-punch', subject: 2, trial: 5,
+    caption: 'A person plants their feet and throws a forceful forward punch.',
+    sourceDescription: 'punch/strike',
+    groundTruth: motion(2, 5, 'Punch and strike'),
   },
   {
-    id: 'heldout-playground-05', subject: 1, trial: 5,
-    caption: 'A person climbs, crouches down, and moves underneath an obstacle.',
-    sourceDescription: 'playground - climb, go under',
-    groundTruth: motion(5, 'Climb and go under'),
+    id: 'heldout-jump-balance', subject: 2, trial: 4,
+    caption: 'A person jumps, lands, and steadies their body to regain balance.',
+    sourceDescription: 'jump, balance',
+    groundTruth: motion(2, 4, 'Jump and balance'),
   },
   {
-    id: 'heldout-playground-06', subject: 1, trial: 6,
-    caption: 'A person climbs up, sits, dangles both legs, then descends.',
-    sourceDescription: 'playground - climb, sit, dangle legs, descend',
-    groundTruth: motion(6, 'Climb, sit, and descend'),
+    id: 'heldout-scoop', subject: 2, trial: 6,
+    caption: 'A person bends down, scoops something up, rises, and lifts one arm.',
+    sourceDescription: 'bend over, scoop up, rise, lift arm',
+    groundTruth: motion(2, 6, 'Bend, scoop, and lift'),
   },
   {
-    id: 'heldout-playground-07', subject: 1, trial: 7,
-    caption: 'A person climbs up, sits with legs dangling, then jumps down.',
-    sourceDescription: 'playground - climb, sit, dangle legs, jump down',
-    groundTruth: motion(7, 'Climb, sit, and jump down'),
+    id: 'heldout-forward-dribble', subject: 6, trial: 2,
+    caption: 'A person walks forward while rhythmically dribbling a basketball with one hand.',
+    sourceDescription: 'basketball - forward dribble',
+    groundTruth: motion(6, 2, 'Forward basketball dribble'),
   },
   {
-    id: 'heldout-playground-08', subject: 1, trial: 8,
-    caption: 'A person climbs, sits and dangles their legs, rocks backward, then lowers to the ground.',
-    sourceDescription: 'playground - climb, sit, dangle legs, rock back, lower self to ground',
-    groundTruth: motion(8, 'Climb, rock back, and lower'),
+    id: 'heldout-soccer-kick', subject: 10, trial: 2,
+    caption: 'A person approaches a ball, plants one foot, and kicks forward with the other leg.',
+    sourceDescription: 'soccer - kick ball',
+    groundTruth: motion(10, 2, 'Soccer kick'),
   },
   {
-    id: 'heldout-playground-09', subject: 1, trial: 9,
-    caption: 'A person climbs and hangs with straight arms, swings, drops to sit, then moves underneath.',
-    sourceDescription: 'playground - climb, hang, hold self up with arms straight, swing, drop, sit, dangle legs, go under',
-    groundTruth: motion(9, 'Extended playground sequence'),
+    id: 'heldout-run', subject: 2, trial: 3,
+    caption: 'A person accelerates into a steady forward run.',
+    sourceDescription: 'run/jog',
+    groundTruth: motion(2, 3, 'Forward run'),
   },
   {
-    id: 'heldout-playground-10', subject: 1, trial: 10,
-    caption: 'A person climbs up, swings, leans backward, and drops down.',
-    sourceDescription: 'playground - climb, swing, lean back, drop',
-    groundTruth: motion(10, 'Climb, swing, and drop'),
+    id: 'heldout-zombie-march', subject: 20, trial: 8,
+    caption: 'A person shuffles forward with a stiff, exaggerated zombie-like march.',
+    sourceDescription: 'zombie march',
+    groundTruth: motion(20, 8, 'Zombie march'),
   },
 ];

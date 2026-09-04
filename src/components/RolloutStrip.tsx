@@ -1,5 +1,6 @@
 import { BrainCircuit, Check, Pause, RotateCcw, Sparkles } from 'lucide-react';
 import { getBestRollout, getSelectedRollout, useExperimentStore } from '../state/experimentStore';
+import { LearningCurve } from './LearningCurve';
 import { RolloutGallery } from './RolloutGallery';
 import { ScoreDisplay } from './ScoreDisplay';
 
@@ -89,6 +90,7 @@ export function RolloutStrip() {
           {state.status === 'submitted' && <span className="submitted"><Check size={12} /> submitted</span>}
         </div>
       </div>
+      <LearningCurve rollouts={state.rollouts} />
       <RolloutGallery rollouts={state.rollouts} selectedId={state.selectedRolloutId} bestId={state.bestRolloutId} onSelect={state.selectRollout} />
       {state.error && <button className="error-toast" onClick={state.clearError}>{state.error}</button>}
     </section>

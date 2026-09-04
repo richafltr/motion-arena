@@ -22,9 +22,9 @@ const pendingReward: RewardMetrics = {
 };
 
 const tiers = [
-  { variant: 0.48, label: 'baseline', seed: 1207 },
-  { variant: 0.67, label: 'medium', seed: 1344 },
-  { variant: 0.82, label: 'strong', seed: 1481 },
+  { variant: 0.2, label: 'baseline', seed: 1207 },
+  { variant: 0.42, label: 'medium', seed: 1344 },
+  { variant: 0.64, label: 'strong', seed: 1481 },
 ] as const;
 
 /** Three honest prepared BVH transformations, rescored against each active reference at runtime. */
@@ -49,9 +49,9 @@ export function createPreparedRollouts(reference: MotionAsset): Rollout[] {
 }
 
 export const demoRollouts = createPreparedRollouts({
-  id: 'cmu-01-01',
+  id: 'cmu-02-07',
   label: 'Hidden CMU motion',
-  url: '/motions/cmu-playground/01_01.bvh',
+  url: '/motions/cmu-diverse/02_07.bvh',
   variant: 1,
   source: 'bvh',
 });

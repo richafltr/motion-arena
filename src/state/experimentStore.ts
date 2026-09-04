@@ -32,7 +32,7 @@ type ExperimentActions = {
 export type ExperimentStore = ExperimentState & ExperimentActions;
 
 const initialGroundTruth = hiddenEpisodes[0]?.groundTruth ?? {
-  id: 'cmu-01-01', label: 'Hidden CMU motion', url: '/motions/cmu-playground/01_01.bvh', variant: 1, source: 'bvh' as const,
+  id: 'cmu-02-07', label: 'Hidden CMU motion', url: '/motions/cmu-diverse/02_07.bvh', variant: 1, source: 'bvh' as const,
 };
 
 const initialState: ExperimentState = {

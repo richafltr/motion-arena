@@ -113,6 +113,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .rollout-meta .submitted { display: flex; align-items: center; gap: 3px; color: var(--green); }
 .rollout-search-heading { margin-top: 17px; padding-top: 14px; display: flex; align-items: end; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); }
 .rollout-search-heading p { margin: 5px 0 0; color: #737d77; font-size: 10px; }
+.learning-curve { margin-top: 10px; padding: 9px 11px 7px; background: linear-gradient(180deg,#101613,#0b0f0e); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.learning-curve-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: #758079; font: 500 8px/1 'DM Mono',monospace; text-transform: uppercase; letter-spacing: .07em; }
+.learning-curve-heading strong { color: #dfe9e3; font-size: 10px; letter-spacing: 0; }
+.learning-curve-heading em { padding: 0 3px; color: #627068; font-style: normal; }
+.learning-curve-heading small { margin-left: 7px; color: var(--green); font-size: 8px; }
+.learning-curve svg { width: 100%; height: 68px; display: block; overflow: visible; }
+.curve-goal { stroke: #425049; stroke-width: 1; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+.curve-goal-label { fill: #546159; text-anchor: end; font: 500 6px 'DM Mono',monospace; }
+.curve-area { fill: rgba(116,229,164,.08); }
+.curve-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px rgba(116,229,164,.28)); }
+.curve-point { fill: #0d1310; stroke: #79dca4; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.curve-point--latest { fill: var(--green); stroke: #d5f8e3; }
 .rollout-gallery-shell { position: relative; margin-top: 10px; }
 .rollout-gallery { position: relative; padding-bottom: 5px; display: grid; grid-auto-flow: column; grid-auto-columns: 146px; gap: 8px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; scrollbar-color: #344039 #111516; }
 .rollout-gallery-canvas { position: absolute; z-index: 1; top: 0; left: 0; width: 100%; height: 82px; pointer-events: none; }
