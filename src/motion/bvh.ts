@@ -2,6 +2,7 @@ import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 import {
   AnimationClip,
   AnimationUtils,
+  Quaternion,
   QuaternionKeyframeTrack,
   VectorKeyframeTrack,
   type KeyframeTrack,
@@ -36,6 +37,8 @@ const CMU_TO_VRM: Record<string, VRMHumanBoneName> = {
 const CMU_VERTICAL_TO_METERS = 0.055;
 const CMU_HORIZONTAL_TO_METERS = 0.02;
 const CMU_FPS = 120;
+const restQuaternion = new Quaternion();
+const frameQuaternion = new Quaternion();
 
 export type BvhRetargetOptions = {
   duration: number;
@@ -61,10 +64,21 @@ export async function loadBvhClip(url: string, vrm: VRM, options: BvhRetargetOpt
     if (!target) continue;
 
     if (property === 'quaternion') {
+      const sourceRestTrack = result.clip.tracks.find((track) => track.name === sourceTrack.name);
+      if (!sourceRestTrack || sourceRestTrack.values.length < 4) continue;
+      restQuaternion.fromArray(sourceRestTrack.values, 0).invert();
+      const values = Array.from(sourceTrack.values);
+      for (let index = 0; index < values.length; index += 4) {
+        frameQuaternion
+          .fromArray(values, index)
+          .premultiply(restQuaternion)
+          .normalize()
+          .toArray(values, index);
+      }
       tracks.push(new QuaternionKeyframeTrack(
         `${target.name}.quaternion`,
         Array.from(sourceTrack.times),
-        Array.from(sourceTrack.values),
+        values,
       ));
     } else if (sourceBone === 'Hips' && property === 'position') {
       const values = Array.from(sourceTrack.values);
