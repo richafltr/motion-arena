@@ -33,7 +33,9 @@ Set `VITE_MOMASK_API_URL` to the Modal service origin when its compatible `POST 
 
 ## Motion assets
 
-Both panes load the same MIT-licensed pixiv VRM 1.0 sample and VRMA test animation. The truth clip remains immutable; mock candidates are deterministic quaternion attenuation variants of a cloned clip. The `src/motion` boundary is ready for BVH→VRMA output and a real MoMask asset URL.
+Both panes load the same MIT-licensed pixiv VRM 1.0 sample. The right pane retargets one of ten local CMU-derived BVH clips onto the VRM normalized skeleton; a human-only dice control samples a new hidden episode and its natural-language caption. Mock candidates are deterministic quaternion attenuation variants of a cloned VRMA clip. Drag either viewport to orbit both cameras together through 360°, or scroll to zoom.
+
+The selected held-out BVH path is deliberately absent from WebMCP tool results. Only the caption, mask, episode state, and aggregate rewards are exposed to the agent.
 
 See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for source and license attribution.
 

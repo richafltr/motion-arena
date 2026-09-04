@@ -1,7 +1,7 @@
 import type { Rollout } from '../types';
 
 export const AVATAR_URL = '/models/arena-avatar.vrm';
-export const HELD_OUT_MOTION_URL = '/models/held-out-motion.vrma';
+export const CANDIDATE_MOTION_URL = '/motions/candidate-base.vrma';
 
 const scores = [61.2, 73.8, 79.4, 87.1];
 const variants = [0.48, 0.66, 0.81, 0.93];
@@ -24,7 +24,7 @@ export const demoRollouts: Rollout[] = scores.map((score, index) => ({
   motion: {
     id: `candidate-${index + 1}`,
     label: `Candidate ${index + 1}`,
-    url: HELD_OUT_MOTION_URL,
+    url: CANDIDATE_MOTION_URL,
     variant: variants[index] ?? 0.5,
     source: 'mock-derived',
   },
@@ -56,7 +56,7 @@ export function createDeterministicRollout(index: number, span?: [number, number
     motion: {
       id: `candidate-${index + 1}`,
       label: `Candidate ${index + 1}`,
-      url: HELD_OUT_MOTION_URL,
+      url: CANDIDATE_MOTION_URL,
       variant,
       source: 'mock-derived',
     },

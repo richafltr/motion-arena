@@ -13,7 +13,7 @@ export function RolloutStrip() {
     <section className="rollout-strip" aria-label="Episode rollout controls">
       <div className="briefing-row">
         <div className="instruction-block">
-          <span className="eyebrow">Motion instruction</span>
+          <span className="eyebrow">Ground-truth caption · motion visible, asset withheld</span>
           <p>“{state.instruction}”</p>
         </div>
         <div className="score-cluster">

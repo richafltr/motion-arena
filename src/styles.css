@@ -33,7 +33,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .arena-heading { display: flex; align-items: end; justify-content: space-between; padding: 28px 0 18px; }
 .eyebrow { color: #7d8781; font: 500 10px/1.2 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .1em; }
 .arena-heading h1 { margin: 8px 0 0; font-size: clamp(24px, 3vw, 42px); letter-spacing: -.052em; line-height: 1.02; font-weight: 570; }
-.arena-heading > p { margin: 0 0 4px; color: #747d78; font: 400 11px/1 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; }
+.arena-actions { display: flex; align-items: center; gap: 14px; }
+.arena-actions p { margin: 0; color: #747d78; font: 400 11px/1 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; }
+.dice-button { display: flex; align-items: center; gap: 7px; padding: 9px 11px; color: #d4dcd7; background: #101415; border: 1px solid #39413d; border-radius: 6px; font: 500 9px/1 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+.dice-button:hover { color: #07120c; background: var(--green); border-color: var(--green); }
 
 .arena-grid { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .motion-pane { min-width: 0; }
@@ -50,6 +53,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .spinner { width: 13px; height: 13px; border: 1px solid #3e4842; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .viewport-corners { position: absolute; inset: 10px; pointer-events: none; opacity: .35; background: linear-gradient(#819189,#819189) left top/10px 1px no-repeat,linear-gradient(#819189,#819189) left top/1px 10px no-repeat,linear-gradient(#819189,#819189) right top/10px 1px no-repeat,linear-gradient(#819189,#819189) right top/1px 10px no-repeat,linear-gradient(#819189,#819189) left bottom/10px 1px no-repeat,linear-gradient(#819189,#819189) left bottom/1px 10px no-repeat,linear-gradient(#819189,#819189) right bottom/10px 1px no-repeat,linear-gradient(#819189,#819189) right bottom/1px 10px no-repeat; }
+.orbit-hint { position: absolute; right: 14px; bottom: 12px; padding: 5px 7px; color: #657069; background: rgba(8,11,11,.7); border-radius: 4px; pointer-events: none; font: 500 8px/1 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .06em; opacity: 0; transition: opacity .2s ease; }
+.viewport:hover .orbit-hint { opacity: 1; }
 .versus { z-index: 2; position: absolute; left: 50%; top: calc(50% + 25px); transform: translate(-50%,-50%); display: grid; place-items: center; width: 34px; height: 34px; color: #86908a; background: #090b0c; border: 1px solid #343b37; border-radius: 50%; font: 500 9px/1 'DM Mono', monospace; }
 
 .timeline { margin-top: 8px; min-height: 50px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 8px 12px; background: #0f1213; border: 1px solid var(--line); border-radius: 8px; }
@@ -91,7 +96,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 @media (max-width: 900px) {
   .app-shell { padding-inline: 16px; }
-  .arena-heading > p { display: none; }
+  .arena-actions p { display: none; }
   .viewport { height: 390px; }
   .briefing-row { grid-template-columns: 1fr; }
   .score-cluster { flex-wrap: wrap; }
@@ -102,6 +107,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 640px) {
   .status-line span:first-child, .status-line a { display: none; }
   .arena-heading { padding-top: 21px; }
+  .arena-heading { align-items: flex-start; gap: 14px; }
+  .dice-button { padding: 9px; }
+  .dice-button svg { flex: 0 0 auto; }
   .arena-heading h1 { font-size: 29px; }
   .arena-grid { grid-template-columns: 1fr; }
   .viewport { height: 48vh; min-height: 320px; }

@@ -18,7 +18,16 @@ export type MotionAsset = {
   label: string;
   url: string;
   variant: number;
-  source: 'vrma' | 'mock-derived';
+  source: 'bvh' | 'vrma' | 'mock-derived';
+};
+
+export type HiddenEpisode = {
+  id: string;
+  caption: string;
+  sourceDescription: string;
+  subject: number;
+  trial: number;
+  groundTruth: MotionAsset;
 };
 
 export type Rollout = {
@@ -35,7 +44,9 @@ export type EpisodeStatus = 'ready' | 'running' | 'submitted';
 
 export type ExperimentState = {
   episodeId: string;
+  episodeIndex: number;
   instruction: string;
+  groundTruth: MotionAsset;
   hiddenSpan: [number, number];
   duration: number;
   budgetTotal: number;

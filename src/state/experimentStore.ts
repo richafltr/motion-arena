@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { momaskClient } from '../api/momaskClient';
 import { createDeterministicRollout, demoRollouts } from '../data/demoMotions';
+import { hiddenEpisodes } from '../data/hiddenEpisodes';
 import type { ExperimentState, Rollout } from '../types';
 
 type ExperimentActions = {
   selectRollout: (id: string) => void;
+  rollHiddenEpisode: () => void;
   runRollout: (span?: [number, number]) => Promise<Rollout>;
   submitBest: () => Rollout;
   togglePlayback: () => void;
@@ -19,10 +21,14 @@ type ExperimentActions = {
 export type ExperimentStore = ExperimentState & ExperimentActions;
 
 const initialState: ExperimentState = {
-  episodeId: 'mocap-heldout-014',
-  instruction: 'A person steps forward, plants the left foot, then turns and reaches across the body.',
+  episodeId: 'arena-7fd1c2a4',
+  episodeIndex: 0,
+  instruction: hiddenEpisodes[0]?.caption ?? 'A person makes several forward jumps, then turns around.',
+  groundTruth: hiddenEpisodes[0]?.groundTruth ?? {
+    id: 'cmu-01-01', label: 'Hidden CMU motion', url: '/motions/cmu-playground/01_01.bvh', variant: 1, source: 'bvh',
+  },
   hiddenSpan: [0.31, 0.7],
-  duration: 3.63,
+  duration: 8,
   budgetTotal: 12,
   budgetRemaining: 8,
   rollouts: demoRollouts,
@@ -44,6 +50,31 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
     if (get().rollouts.some((rollout) => rollout.id === id)) {
       set((state) => ({ selectedRolloutId: id, playback: { ...state.playback, time: 0 } }));
     }
+  },
+
+  rollHiddenEpisode: () => {
+    const state = get();
+    if (hiddenEpisodes.length < 2) return;
+    const random = new Uint32Array(1);
+    crypto.getRandomValues(random);
+    const offset = 1 + ((random[0] ?? 0) % (hiddenEpisodes.length - 1));
+    const episodeIndex = (state.episodeIndex + offset) % hiddenEpisodes.length;
+    const episode = hiddenEpisodes[episodeIndex];
+    if (!episode) return;
+    const rollouts = demoRollouts.map((rollout) => ({ ...rollout, timestamp: new Date().toISOString() }));
+    set({
+      episodeId: `arena-${crypto.randomUUID().slice(0, 8)}`,
+      episodeIndex,
+      instruction: episode.caption,
+      groundTruth: episode.groundTruth,
+      rollouts,
+      selectedRolloutId: rollouts.at(-1)?.id ?? 'r04',
+      bestRolloutId: rollouts.at(-1)?.id ?? 'r04',
+      budgetRemaining: initialState.budgetRemaining,
+      status: 'ready',
+      playback: { ...state.playback, time: 0, playing: true },
+      error: null,
+    });
   },
 
   runRollout: async (span) => {
