@@ -25,7 +25,7 @@ npm run lint
 npm run build
 ```
 
-Set `VITE_MOMASK_API_URL` only when a compatible Modal endpoint is ready. Without it, all rollouts remain deterministic and browser-local. `?forceWebgl=1&disableWebmcp=1` exercises both fallback paths.
+Set `VITE_MOMASK_API_URL` to the Modal service origin when its compatible `POST /rollouts` endpoint is ready. The store automatically switches to the remote adapter and uses the returned motion asset. Without it, all rollouts remain deterministic and browser-local. `?forceWebgl=1&disableWebmcp=1` exercises both fallback paths.
 
 ## WebMCP tools
 

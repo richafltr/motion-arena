@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { momaskClient } from '../api/momaskClient';
 import { createDeterministicRollout, demoRollouts } from '../data/demoMotions';
 import type { ExperimentState, Rollout } from '../types';
 
@@ -57,23 +58,41 @@ export const useExperimentStore = create<ExperimentStore>((set, get) => ({
     }
 
     set({ status: 'running', error: null });
-    await delay(620);
-    const rollout = createDeterministicRollout(get().rollouts.length, span);
-    set((current) => {
-      const rollouts = [...current.rollouts, rollout];
-      const best = rollouts.reduce((leader, candidate) =>
-        candidate.reward.combined > leader.reward.combined ? candidate : leader,
-      );
-      return {
-        rollouts,
-        selectedRolloutId: rollout.id,
-        bestRolloutId: best.id,
-        budgetRemaining: current.budgetRemaining - 1,
-        status: 'ready',
-        playback: { ...current.playback, time: 0, playing: true },
-      };
-    });
-    return rollout;
+    try {
+      const candidate = createDeterministicRollout(get().rollouts.length, span);
+      if (momaskClient.mode === 'mock') await delay(620);
+      const rollout = momaskClient.mode === 'remote'
+        ? {
+            ...candidate,
+            motion: (await momaskClient.generate({
+              episodeId: state.episodeId,
+              seed: candidate.seed,
+              settings: candidate.settings,
+            })).motion,
+            note: 'MoMask endpoint rollout',
+          }
+        : candidate;
+
+      set((current) => {
+        const rollouts = [...current.rollouts, rollout];
+        const best = rollouts.reduce((leader, item) =>
+          item.reward.combined > leader.reward.combined ? item : leader,
+        );
+        return {
+          rollouts,
+          selectedRolloutId: rollout.id,
+          bestRolloutId: best.id,
+          budgetRemaining: current.budgetRemaining - 1,
+          status: 'ready',
+          playback: { ...current.playback, time: 0, playing: true },
+        };
+      });
+      return rollout;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Rollout failed.';
+      set({ status: 'ready', error: message });
+      throw cause;
+    }
   },
 
   submitBest: () => {
